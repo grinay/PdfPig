@@ -37,7 +37,9 @@
         /// <summary>
         /// Create a new <see cref="IndexToLocationTable"/>.
         /// </summary>
-        public IndexToLocationTable(TrueTypeHeaderTable directoryTable, EntryFormat format, IReadOnlyList<uint> glyphOffsets)
+        public IndexToLocationTable(TrueTypeHeaderTable directoryTable,
+            EntryFormat format,
+            IReadOnlyList<uint> glyphOffsets)
         {
             DirectoryTable = directoryTable;
             Format = format;
@@ -48,7 +50,9 @@
         /// Load the index to location (loca) table from the TrueType font. Requires the maximum profile (maxp) and header (head) table
         /// to have been parsed.
         /// </summary>
-        internal static IndexToLocationTable Load(TrueTypeDataBytes data, TrueTypeHeaderTable table, TableRegister.Builder tableRegister)
+        internal static IndexToLocationTable Load(TrueTypeDataBytes data,
+            TrueTypeHeaderTable table,
+            TableRegister.Builder tableRegister)
         {
             if (data == null)
             {
@@ -79,28 +83,35 @@
 
             var glyphCount = maximumProfileTable.NumberOfGlyphs + 1;
 
-            uint[] offsets; 
+            uint[] offsets;
+            
+            if (format != EntryFormat.Short && format != EntryFormat.Long)
+            {
+                format = EntryFormat.Short;
+            }
 
             switch (format)
             {
                 case EntryFormat.Short:
-                    { 
-                        // The local offset divided by 2 is stored.
-                        offsets = new uint[glyphCount];
-                        for (var i = 0; i < glyphCount; i++)
-                        {
-                            offsets[i] = (uint)(data.ReadUnsignedShort() * 2);
-                        }
-                        break;
-                    }
-                case EntryFormat.Long:
+                {
+                    // The local offset divided by 2 is stored.
+                    offsets = new uint[glyphCount];
+                    for (var i = 0; i < glyphCount; i++)
                     {
-                        // The actual offset is stored.
-                        offsets = data.ReadUnsignedIntArray(glyphCount);
-                        break;
+                        offsets[i] = (uint)(data.ReadUnsignedShort() * 2);
                     }
+
+                    break;
+                }
+                case EntryFormat.Long:
+                {
+                    // The actual offset is stored.
+                    offsets = data.ReadUnsignedIntArray(glyphCount);
+                    break;
+                }
                 default:
-                    throw new InvalidOperationException($"The format {format} was invalid for the index to location (loca) table.");
+                    throw new InvalidOperationException(
+                        $"The format {format} was invalid for the index to location (loca) table.");
             }
 
 
@@ -116,13 +127,14 @@
                 switch (Format)
                 {
                     case EntryFormat.Short:
-                        stream.WriteUShort((ushort)offset/2);
+                        stream.WriteUShort((ushort)offset / 2);
                         break;
                     case EntryFormat.Long:
                         stream.WriteUInt(offset);
                         break;
                     default:
-                        throw new InvalidOperationException($"The format {Format} was invalid for the index to location (loca) table.");
+                        throw new InvalidOperationException(
+                            $"The format {Format} was invalid for the index to location (loca) table.");
                 }
             }
         }
@@ -136,6 +148,7 @@
             /// The actual local offset divided by 2 is stored.
             /// </summary>
             Short = 0,
+
             /// <summary>
             /// The actual local offset is stored.
             /// </summary>
