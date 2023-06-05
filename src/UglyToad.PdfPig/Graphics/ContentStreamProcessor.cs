@@ -35,8 +35,7 @@
         /// <summary>
         /// Stores a link to each image (either inline or XObject) as it is encountered in the content stream.
         /// </summary>
-        private readonly List<Union<XObjectContentRecord, InlineImage>> images =
-            new List<Union<XObjectContentRecord, InlineImage>>();
+        private readonly List<Union<XObjectContentRecord, InlineImage>> images = new List<Union<XObjectContentRecord, InlineImage>>();
 
         /// <summary>
         /// Stores each marked content as it is encountered in the content stream.
@@ -79,17 +78,13 @@
 
         public int StackSize => graphicsStack.Count;
 
-        private readonly Dictionary<XObjectType, List<XObjectContentRecord>> xObjects =
-            new Dictionary<XObjectType, List<XObjectContentRecord>>
-            {
-                { XObjectType.Image, new List<XObjectContentRecord>() },
-                { XObjectType.PostScript, new List<XObjectContentRecord>() }
-            };
+        private readonly Dictionary<XObjectType, List<XObjectContentRecord>> xObjects = new Dictionary<XObjectType, List<XObjectContentRecord>>
+        {
+            {XObjectType.Image, new List<XObjectContentRecord>()},
+            {XObjectType.PostScript, new List<XObjectContentRecord>()}
+        };
 
-        public ContentStreamProcessor(PdfRectangle cropBox,
-            IResourceStore resourceStore,
-            UserSpaceUnit userSpaceUnit,
-            PageRotationDegrees rotation,
+        public ContentStreamProcessor(PdfRectangle cropBox, IResourceStore resourceStore, UserSpaceUnit userSpaceUnit, PageRotationDegrees rotation,
             IPdfTokenScanner pdfScanner,
             IPageContentParser pageContentParser,
             ILookupFilterProvider filterProvider,
@@ -175,15 +170,9 @@
             }
 
             return new TransformationMatrix(
-                cos,
-                -sin,
-                0,
-                sin,
-                cos,
-                0,
-                dx,
-                dy,
-                1);
+                cos, -sin, 0,
+                sin, cos, 0,
+                dx, dy, 1);
         }
 
         public PageContent Process(int pageNumberCurrent, IReadOnlyList<IGraphicsStateOperation> operations)
@@ -193,14 +182,7 @@
 
             ProcessOperations(operations);
 
-            return new PageContent(operations,
-                letters,
-                paths,
-                images,
-                markedContents,
-                pdfScanner,
-                filterProvider,
-                resourceStore);
+            return new PageContent(operations, letters, paths, images, markedContents, pdfScanner, filterProvider, resourceStore);
         }
 
         private void ProcessOperations(IReadOnlyList<IGraphicsStateOperation> operations)
@@ -240,9 +222,7 @@
         {
             var currentState = GetCurrentState();
 
-            var font = currentState.FontState.FromExtendedGraphicsState
-                ? activeExtendedGraphicsStateFont
-                : resourceStore.GetFont(currentState.FontState.FontName);
+            var font = currentState.FontState.FromExtendedGraphicsState ? activeExtendedGraphicsStateFont : resourceStore.GetFont(currentState.FontState.FontName);
 
             if (font == null)
             {
@@ -255,8 +235,7 @@
                     return;
                 }
 
-                throw new InvalidOperationException(
-                    $"Could not find the font with name {currentState.FontState.FontName} in the resource store. It has not been loaded yet.");
+                throw new InvalidOperationException($"Could not find the font with name {currentState.FontState.FontName} in the resource store. It has not been loaded yet.");
             }
 
             var fontSize = currentState.FontState.FontSize;
@@ -269,9 +248,7 @@
             var renderingMatrix =
                 TransformationMatrix.FromValues(fontSize * horizontalScaling, 0, 0, fontSize, 0, rise);
 
-            var pointSize = Math.Round(transformationMatrix.Multiply(TextMatrices.TextMatrix)
-                    .Transform(new PdfRectangle(0, 0, 1, fontSize)).Height,
-                2);
+            var pointSize = Math.Round(transformationMatrix.Multiply(TextMatrices.TextMatrix).Transform(new PdfRectangle(0, 0, 1, fontSize)).Height, 2);
 
             while (bytes.MoveNext())
             {
@@ -281,8 +258,7 @@
 
                 if (!foundUnicode || unicode == null)
                 {
-                    parsingOptions.Logger.Warn(
-                        $"We could not find the corresponding character with code {code} in font {font.Name}.");
+                    parsingOptions.Logger.Warn($"We could not find the corresponding character with code {code} in font {font.Name}.");
 
                     // Try casting directly to string as in PDFBox 1.8.
                     unicode = new string((char)code, 1);
@@ -300,8 +276,7 @@
                 {
                     if (!(font is IVerticalWritingSupported verticalFont))
                     {
-                        throw new InvalidOperationException(
-                            $"Font {font.Name} was in vertical writing mode but did not implement {nameof(IVerticalWritingSupported)}.");
+                        throw new InvalidOperationException($"Font {font.Name} was in vertical writing mode but did not implement {nameof(IVerticalWritingSupported)}.");
                     }
 
                     var positionVector = verticalFont.GetPositionVector(code);
@@ -312,30 +287,10 @@
                 var boundingBox = font.GetBoundingBox(code);
 
                 var transformedGlyphBounds = PerformantRectangleTransformer
-                    .Transform(renderingMatrix, textMatrix, transformationMatrix, boundingBox.GlyphBounds);
+                      .Transform(renderingMatrix, textMatrix, transformationMatrix, boundingBox.GlyphBounds);
 
                 var transformedPdfBounds = PerformantRectangleTransformer
-                    .Transform(renderingMatrix,
-                        textMatrix,
-                        transformationMatrix,
-                        new PdfRectangle(0, 0, boundingBox.Width, 0));
-
-                //Pdf files exported from figma has no height for some reason
-                //But we may overcome that with getting point size as height for font
-                //I assume other apps doing the same thing, as this is known issue with figma exported pdf
-                //https://forum.figma.com/t/pdf-export-text-not-selectable/286/17
-                if (boundingBox.GlyphBounds.Height == 0)
-                {
-                    transformedGlyphBounds = new PdfRectangle(transformedGlyphBounds.BottomLeft.X,
-                        transformedGlyphBounds.BottomLeft.Y,
-                        transformedGlyphBounds.TopRight.X,
-                        transformedGlyphBounds.BottomLeft.Y + pointSize * fontSize);
-
-                    transformedPdfBounds = new PdfRectangle(transformedPdfBounds.BottomLeft.X,
-                        transformedPdfBounds.BottomLeft.Y,
-                        transformedGlyphBounds.TopRight.X,
-                        transformedGlyphBounds.BottomLeft.Y + pointSize * fontSize);
-                }
+                    .Transform(renderingMatrix, textMatrix, transformationMatrix, new PdfRectangle(0, 0, boundingBox.Width, 0));
 
                 // If the text rendering mode calls for filling, the current nonstroking color in the graphics state is used; 
                 // if it calls for stroking, the current stroking color is used.
@@ -397,7 +352,6 @@
                         pointSize,
                         textSequence);
                 }
-
 
                 letters.Add(letter);
 
@@ -486,20 +440,14 @@
 
             if (subType.Equals(NameToken.Ps))
             {
-                var contentRecord = new XObjectContentRecord(XObjectType.PostScript,
-                    xObjectStream,
-                    matrix,
-                    state.RenderingIntent,
+                var contentRecord = new XObjectContentRecord(XObjectType.PostScript, xObjectStream, matrix, state.RenderingIntent,
                     state.CurrentStrokingColor?.ColorSpace ?? ColorSpace.DeviceRGB);
 
                 xObjects[XObjectType.PostScript].Add(contentRecord);
             }
             else if (subType.Equals(NameToken.Image))
             {
-                var contentRecord = new XObjectContentRecord(XObjectType.Image,
-                    xObjectStream,
-                    matrix,
-                    state.RenderingIntent,
+                var contentRecord = new XObjectContentRecord(XObjectType.Image, xObjectStream, matrix, state.RenderingIntent,
                     state.CurrentStrokingColor?.ColorSpace ?? ColorSpace.DeviceRGB);
 
                 images.Add(Union<XObjectContentRecord, InlineImage>.One(contentRecord));
@@ -512,8 +460,7 @@
             }
             else
             {
-                throw new InvalidOperationException(
-                    $"XObject encountered with unexpected SubType {subType}. {xObjectStream.StreamDictionary}.");
+                throw new InvalidOperationException($"XObject encountered with unexpected SubType {subType}. {xObjectStream.StreamDictionary}.");
             }
         }
 
@@ -529,10 +476,7 @@
              * 5. Restore the saved graphics state, as if by invoking the Q operator.
              */
 
-            var hasResources =
-                formStream.StreamDictionary.TryGet<DictionaryToken>(NameToken.Resources,
-                    pdfScanner,
-                    out var formResources);
+            var hasResources = formStream.StreamDictionary.TryGet<DictionaryToken>(NameToken.Resources, pdfScanner, out var formResources);
             if (hasResources)
             {
                 resourceStore.LoadResourceDictionary(formResources);
@@ -546,9 +490,7 @@
             var formMatrix = TransformationMatrix.Identity;
             if (formStream.StreamDictionary.TryGet<ArrayToken>(NameToken.Matrix, pdfScanner, out var formMatrixToken))
             {
-                formMatrix =
-                    TransformationMatrix.FromArray(formMatrixToken.Data.OfType<NumericToken>().Select(x => x.Double)
-                        .ToArray());
+                formMatrix = TransformationMatrix.FromArray(formMatrixToken.Data.OfType<NumericToken>().Select(x => x.Double).ToArray());
             }
 
             // 2. Update current transformation matrix.
@@ -558,9 +500,7 @@
 
             var contentStream = formStream.Decode(filterProvider, pdfScanner);
 
-            var operations = pageContentParser.Parse(pageNumber,
-                new ByteArrayInputBytes(contentStream),
-                parsingOptions.Logger);
+            var operations = pageContentParser.Parse(pageNumber, new ByteArrayInputBytes(contentStream), parsingOptions.Logger);
 
             // 3. We don't respect clipping currently.
 
@@ -690,12 +630,7 @@
             var controlPoint2 = CurrentTransformationMatrix.Transform(new PdfPoint(x2, y2));
             var end = CurrentTransformationMatrix.Transform(new PdfPoint(x3, y3));
 
-            CurrentSubpath.BezierCurveTo(CurrentPosition.X,
-                CurrentPosition.Y,
-                controlPoint2.X,
-                controlPoint2.Y,
-                end.X,
-                end.Y);
+            CurrentSubpath.BezierCurveTo(CurrentPosition.X, CurrentPosition.Y, controlPoint2.X, controlPoint2.Y, end.X, end.Y);
             CurrentPosition = end;
         }
 
@@ -710,12 +645,7 @@
             var controlPoint2 = CurrentTransformationMatrix.Transform(new PdfPoint(x2, y2));
             var end = CurrentTransformationMatrix.Transform(new PdfPoint(x3, y3));
 
-            CurrentSubpath.BezierCurveTo(controlPoint1.X,
-                controlPoint1.Y,
-                controlPoint2.X,
-                controlPoint2.Y,
-                end.X,
-                end.Y);
+            CurrentSubpath.BezierCurveTo(controlPoint1.X, controlPoint1.Y, controlPoint2.X, controlPoint2.Y, end.X, end.Y);
             CurrentPosition = end;
         }
 
@@ -759,7 +689,6 @@
                     paths.Add(CurrentPath);
                     markedContentStack.AddPath(CurrentPath);
                 }
-
                 CurrentPath = null;
                 return;
             }
@@ -861,8 +790,7 @@
             }
 
             if (state.TryGet(NameToken.Font, pdfScanner, out ArrayToken fontArray) && fontArray.Length == 2
-                && fontArray.Data[0] is IndirectReferenceToken fontReference &&
-                fontArray.Data[1] is NumericToken sizeToken)
+                && fontArray.Data[0] is IndirectReferenceToken fontReference && fontArray.Data[1] is NumericToken sizeToken)
             {
                 currentGraphicsState.FontState.FromExtendedGraphicsState = true;
                 currentGraphicsState.FontState.FontSize = (double)sizeToken.Data;
@@ -874,8 +802,7 @@
         {
             if (inlineImageBuilder != null)
             {
-                parsingOptions.Logger.Error(
-                    "Begin inline image (BI) command encountered while another inline image was active.");
+                parsingOptions.Logger.Error("Begin inline image (BI) command encountered while another inline image was active.");
             }
 
             inlineImageBuilder = new InlineImageBuilder();
@@ -885,8 +812,7 @@
         {
             if (inlineImageBuilder == null)
             {
-                parsingOptions.Logger.Error(
-                    "Begin inline image data (ID) command encountered without a corresponding begin inline image (BI) command.");
+                parsingOptions.Logger.Error("Begin inline image data (ID) command encountered without a corresponding begin inline image (BI) command.");
                 return;
             }
 
@@ -897,18 +823,13 @@
         {
             if (inlineImageBuilder == null)
             {
-                parsingOptions.Logger.Error(
-                    "End inline image (EI) command encountered without a corresponding begin inline image (BI) command.");
+                parsingOptions.Logger.Error("End inline image (EI) command encountered without a corresponding begin inline image (BI) command.");
                 return;
             }
 
             inlineImageBuilder.Bytes = bytes;
 
-            var image = inlineImageBuilder.CreateInlineImage(CurrentTransformationMatrix,
-                filterProvider,
-                pdfScanner,
-                GetCurrentState().RenderingIntent,
-                resourceStore);
+            var image = inlineImageBuilder.CreateInlineImage(CurrentTransformationMatrix, filterProvider, pdfScanner, GetCurrentState().RenderingIntent, resourceStore);
 
             images.Add(Union<XObjectContentRecord, InlineImage>.Two(image));
 

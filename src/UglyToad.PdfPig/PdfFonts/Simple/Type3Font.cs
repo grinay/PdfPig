@@ -26,13 +26,8 @@
 
         public FontDetails Details { get; }
 
-        public Type3Font(NameToken name,
-            PdfRectangle boundingBox,
-            TransformationMatrix fontMatrix,
-            Encoding encoding,
-            int firstChar,
-            int lastChar,
-            double[] widths,
+        public Type3Font(NameToken name, PdfRectangle boundingBox, TransformationMatrix fontMatrix,
+            Encoding encoding, int firstChar, int lastChar, double[] widths,
             CMap toUnicodeCMap)
         {
             Name = name;
@@ -84,12 +79,10 @@
         {
             if (characterCode < firstChar || characterCode > lastChar)
             {
-                throw new InvalidFontFormatException(
-                    $"The character code was not contained in the widths array: {characterCode}.");
+                throw new InvalidFontFormatException($"The character code was not contained in the widths array: {characterCode}.");
             }
 
-            var scale = this.boundingBox.Width != 0 ? widths[characterCode - firstChar] / this.boundingBox.Width : 0;
-            return new PdfRectangle(0, 0, widths[characterCode - firstChar], boundingBox.Height * scale);
+            return new PdfRectangle(0, 0, widths[characterCode - firstChar], 0);
         }
 
         public TransformationMatrix GetFontMatrix()
