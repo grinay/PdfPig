@@ -1,5 +1,7 @@
 ﻿namespace UglyToad.PdfPig.Content
 {
+    using Core;
+    using Outline;
     using System;
     using System.Collections.Generic;
     using Tokenization.Scanner;
@@ -8,22 +10,25 @@
 
     internal class Pages
     {
-        private readonly Catalog catalog;
         private readonly IPageFactory pageFactory;
         private readonly IPdfTokenScanner pdfScanner;
+        private readonly Dictionary<int, PageTreeNode> pagesByNumber;
+        public int Count => pagesByNumber.Count;
 
-        public int Count { get; }
+        /// <summary>
+        /// The page tree for this document containing all pages, page numbers and their dictionaries.
+        /// </summary>
+        public PageTreeNode PageTree { get; }
 
-        internal Pages(Catalog catalog, IPageFactory pageFactory, IPdfTokenScanner pdfScanner)
+        internal Pages(IPageFactory pageFactory, IPdfTokenScanner pdfScanner, PageTreeNode pageTree, Dictionary<int, PageTreeNode> pagesByNumber)
         {
-            this.catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             this.pageFactory = pageFactory ?? throw new ArgumentNullException(nameof(pageFactory));
             this.pdfScanner = pdfScanner ?? throw new ArgumentNullException(nameof(pdfScanner));
-
-            Count = catalog.PagesDictionary.GetIntOrDefault(NameToken.Count);
+            this.pagesByNumber = pagesByNumber;
+            PageTree = pageTree;
         }
-        
-        public Page GetPage(int pageNumber, InternalParsingOptions parsingOptions)
+
+        internal Page GetPage(int pageNumber, NamedDestinations namedDestinations, InternalParsingOptions parsingOptions)
         {
             if (pageNumber <= 0 || pageNumber > Count)
             {
@@ -33,7 +38,7 @@
                     $"Page number {pageNumber} invalid, must be between 1 and {Count}.");
             }
 
-            var pageNode = catalog.GetPageNode(pageNumber);
+            var pageNode = GetPageNode(pageNumber);
             var pageStack = new Stack<PageTreeNode>();
 
             var currentNode = pageNode;
@@ -69,9 +74,33 @@
                 pageNumber,
                 pageNode.NodeDictionary,
                 pageTreeMembers,
+                namedDestinations,
                 parsingOptions);
             
             return page;
+        }
+
+        internal PageTreeNode GetPageNode(int pageNumber)
+        {
+            if (!pagesByNumber.TryGetValue(pageNumber, out var node))
+            {
+                throw new InvalidOperationException($"Could not find page node by number for: {pageNumber}.");
+            }
+
+            return node;
+        }
+
+        internal PageTreeNode GetPageByReference(IndirectReference reference)
+        {
+            foreach (var page in pagesByNumber)
+            {
+                if (page.Value.Reference.Equals(reference))
+                {
+                    return page.Value;
+                }
+            }
+
+            return null;
         }
     }
 }

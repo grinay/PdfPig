@@ -96,6 +96,7 @@
                 isLenientParsing,
                 clipPaths,
                 options?.SkipMissingFonts ?? false,
+                options?.SkipMissingFonts ?? false,
                 options?.Logger ?? new NoOpLog());
 
             var document = OpenDocument(inputBytes, tokenScanner, finalOptions);
@@ -160,30 +161,45 @@
             var cidFontFactory = new CidFontFactory(pdfScanner, filterProvider);
             var encodingReader = new EncodingReader(pdfScanner);
 
+            var type0Handler = new Type0FontHandler(
+                cidFontFactory,
+                filterProvider,
+                pdfScanner,
+                parsingOptions.Logger);
+
             var type1Handler = new Type1FontHandler(pdfScanner, filterProvider, encodingReader);
 
-            var fontFactory = new FontFactory(parsingOptions.Logger, new Type0FontHandler(cidFontFactory,
-                filterProvider, pdfScanner),
-                new TrueTypeFontHandler(parsingOptions.Logger, pdfScanner, filterProvider, encodingReader, SystemFontFinder.Instance,
-                    type1Handler),
+            var trueTypeHandler = new TrueTypeFontHandler(parsingOptions.Logger,
+                pdfScanner,
+                filterProvider,
+                encodingReader,
+                SystemFontFinder.Instance,
+                type1Handler);
+
+            var fontFactory = new FontFactory(
+                parsingOptions.Logger,
+                type0Handler,
+                trueTypeHandler,
                 type1Handler,
                 new Type3FontHandler(pdfScanner, filterProvider, encodingReader));
 
-            var resourceContainer = new ResourceStore(pdfScanner, fontFactory);
+            var resourceContainer = new ResourceStore(pdfScanner, fontFactory, filterProvider);
 
             var information = DocumentInformationFactory.Create(
                 pdfScanner,
                 crossReferenceTable.Trailer,
                 parsingOptions.UseLenientParsing);
 
+            var pageFactory = new PageFactory(pdfScanner, resourceContainer, filterProvider,
+                new PageContentParser(new ReflectionGraphicsStateOperationFactory()), parsingOptions.Logger);
+
             var catalog = CatalogFactory.Create(
                 rootReference,
                 rootDictionary,
                 pdfScanner,
+                pageFactory,
+                parsingOptions.Logger,
                 parsingOptions.UseLenientParsing);
-
-            var pageFactory = new PageFactory(pdfScanner, resourceContainer, filterProvider,
-                new PageContentParser(new ReflectionGraphicsStateOperationFactory()));
 
             var acroFormFactory = new AcroFormFactory(pdfScanner, filterProvider, crossReferenceTable);
             var bookmarksProvider = new BookmarksProvider(parsingOptions.Logger, pdfScanner);
@@ -192,7 +208,6 @@
                 inputBytes,
                 version,
                 crossReferenceTable,
-                pageFactory,
                 catalog,
                 information,
                 encryptionDictionary,
@@ -224,7 +239,6 @@
             {
                 return null;
             }
-
 
             if (!DirectObjectFinder.TryGet(crossReferenceTable.Trailer.EncryptionToken, pdfTokenScanner, out DictionaryToken encryptionDictionaryToken))
             {

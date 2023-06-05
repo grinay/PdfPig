@@ -13,25 +13,35 @@
     /// </summary>
     internal class PdfStreamWriter : IPdfStreamWriter
     {
+        private readonly Action<decimal> recordVersion;
         protected const decimal DefaultVersion = 1.2m;
         protected Dictionary<IndirectReference, long> offsets = new Dictionary<IndirectReference, long>();
         protected bool DisposeStream { get; set; }
         protected bool Initialized { get; set; }
         protected int CurrentNumber { get; set; } = 1;
+        protected readonly ITokenWriter TokenWriter;
 
-        internal PdfStreamWriter(Stream baseStream, bool disposeStream = true)
+        public Stream Stream { get; protected set; }
+
+        public bool AttemptDeduplication { get; set; } = true;
+
+        internal PdfStreamWriter(
+            Stream baseStream,
+            bool disposeStream = true,
+            ITokenWriter tokenWriter = null,
+            Action<decimal> recordVersion = null)
         {
             Stream = baseStream ?? throw new ArgumentNullException(nameof(baseStream));
+
             if (!baseStream.CanWrite)
             {
                 throw new ArgumentException("Output stream must be writable");
             }
 
+            this.recordVersion = recordVersion;
             DisposeStream = disposeStream;
+            TokenWriter = tokenWriter ?? new TokenWriter();
         }
-
-        public Stream Stream { get; protected set; }
-        public bool AttemptDeduplication { get; set; } = true;
 
         public virtual IndirectReferenceToken WriteToken(IToken token)
         {
@@ -67,6 +77,8 @@
 
         public void InitializePdf(decimal version)
         {
+            recordVersion?.Invoke(version);
+
             WriteString($"%PDF-{version.ToString("0.0", CultureInfo.InvariantCulture)}", Stream);
 
             Stream.WriteText("%");
